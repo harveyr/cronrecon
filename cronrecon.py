@@ -303,6 +303,14 @@ class CronExaminer(object):
                 # ignore line
                 pass
 
+    def jobs_matching_str(self, match_str):
+        match_list = []
+        for job in self.cronjobs:
+            if match_str.lower() in job.action.lower():
+                match_list.append(job)
+
+        return match_list
+
     def upcoming_jobs(self, n=None):
         # Make a list of all upcoming jobs and their dates
         l = []
