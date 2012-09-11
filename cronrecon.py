@@ -5,7 +5,7 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG,
     format='%(levelname)s %(module)s (%(lineno)s): %(message)s')
-# logging.disable(logging.DEBUG)
+logging.disable(logging.DEBUG)
 
 
 class CronJob(object):
@@ -321,12 +321,9 @@ class CronExaminer(object):
                 pass
 
     def jobs_matching_str(self, match_str):
-        match_list = []
-        for job in self.cronjobs:
-            if match_str.lower() in job.action.lower():
-                match_list.append(job)
-
-        return match_list
+        li = [job for job in self.cronjobs if (
+            match_str.lower() in job.action.lower())]
+        return li
 
     def upcoming_jobs(self, n=None):
         # Make a list of n upcoming jobs and their dates

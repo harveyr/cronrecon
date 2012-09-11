@@ -17,3 +17,7 @@ for job in examiner.upcoming_jobs(3):
 print '\n\nJOBS MATCHING "memory_limit"'
 for job in examiner.jobs_matching_str('memory_limit'):
     print job
+
+print '\n\nJOBS MATCHING "job2"'
+for job in examiner.jobs_matching_str('job2'):
+    print job
