@@ -5,7 +5,7 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG,
     format='%(levelname)s %(module)s (%(lineno)s): %(message)s')
-logging.disable(logging.DEBUG)
+# logging.disable(logging.DEBUG)
 
 
 class CronJob(object):
@@ -108,89 +108,45 @@ class CronJob(object):
 
     def next_run(self, start_dt=None):
         """Returns a timedate object for the date/time when this
-        job will next run. This method starts at present time and
-        recursively nudges the date forward until it hits the first
-        cron job time. There is probably a better way to do this."""
-
-        # The following methods replace a certain element of a timedate.
-        # This happens when you're moving forward in time. So, for example,
-        # if you're bumping forward a month, you want to zero out the smaller
-        # time fields so you start at the beginning of the month.
-        # "Zeroing out" means starting at the first possible next job.
-        # Accordingly, you set the new start time to the first element
-        # in the self.cron_* lists, except for the day field, which could
-        # be a DOM or DOW, so you just set that to the earliest possible day.
-        # Then you start nudging forward again from that new date.
-        #
-        # Note that these methods can be used only when the new value
-        # is proper. E.g., you can't replace the hour with 34. If you
-        # don't know whether the value will be proper (e.g., when you're
-        # just incrementing by one), use a timedelta instead.
-
-        def replace_year(dt, year):
-            return dt.replace(year=year,
-                month=self.cron_months[0],
-                day=self.MIN_DOM,
-                hour=self.cron_hours[0],
-                minute=self.cron_minutes[0])
-
-        def replace_month(dt, month):
-            return dt.replace(month=month,
-                day=self.MIN_DOM,
-                hour=self.cron_hours[0],
-                minute=self.cron_minutes[0])
-
-        def replace_day(dt, day):
-            return dt.replace(day=day,
-                hour=self.cron_hours[0],
-                minute=self.cron_minutes[0])
-
-        def replace_hour(dt, hour):
-            return dt.replace(hour=hour,
-                minute=self.cron_minutes[0])
-
-        def replace_minute(dt, minute):
-            return dt.replace(minute=minute)
+        job will next run. This method starts by finding the next
+        cron minute and moves on up from there."""
 
         def first_common_value(list1, list2):
             # Finds the first matching element in both lists
             return next(i for i in list1 if i in list2)
 
-        def create_date(start_dt):
-            # This method is recursively called until we land on a cron date.
-
-            # Recursion halt for debugging.
-            # Delete after refining this method.
-            self.counter += 1
-            if self.counter == 80:
-                sys.exit('Recursion halt in create_date. You broke it.')
-
-            # Step 1: Find next month in which job will run.
-            # (See whether any of the remaining months in the current year
-            # match any of the cron job's months.)
-            remaining_months = range(start_dt.month, self.MAX_MONTH)
+        def set_next_minute(start_dt):
+            remaining_mins = range(start_dt.minute, self.MAX_MINUTE)
             try:
-                next_month = first_common_value(remaining_months,
-                    self.cron_months)
-                if next_month != start_dt.month:
-                    start_dt = replace_month(start_dt, next_month)
+                next_min = first_common_value(remaining_mins,
+                    self.cron_minutes)
+                if next_min != start_dt.minute:
+                    start_dt = replace_minute(start_dt, next_min)
             except Exception:
-                # If no months match, move into first month of next year,
-                # and restart.
-                start_dt = replace_year(start_dt, start_dt.year + 1)
-                logging.debug('Moving into next year ({}).'.format(
-                    start_dt.year))
-                return create_date(start_dt)
+                # If no minutes match, move into next hour.
+                start_dt += datetime.timedelta(hours=1)
+                start_dt = start_dt.replace(minute=self.cron_minutes[0])
 
-            logging.debug('month set to %s' % start_dt.month)
+            return start_dt
 
+        def set_next_hour(start_dt):
+            remaining_hours = range(start_dt.hour, self.MAX_HOUR)
+            try:
+                next_hour = first_common_value(remaining_hours,
+                    self.cron_hours)
+                if next_hour != start_dt.hour:
+                    start_dt = start_dt.replace(hour=next_hour)
+            except Exception:
+                # If no hours match, move into next day and restart.
+                start_dt += datetime.timedelta(days=1)
+                start_dt = start_dt.replace(hour=self.cron_hours[0])
+
+            return start_dt
+
+        def set_next_day(start_dt):
             # Step 2. Deal with DOM versus DOW. This should treat DOM
             # and DOW as cumulative when they are both set. Test days for both
             # DOM and DOW are found to determine which might be next.
-
-            # These flags determine whether, after the comparison,
-            # we need to make a recursive call.
-            in_next_month = False
 
             remaining_dom = range(start_dt.day, self.MAX_DOM)
             test_dom = start_dt
@@ -198,7 +154,7 @@ class CronJob(object):
                 next_dom = first_common_value(remaining_dom,
                     self.cron_dom)
                 if next_dom != start_dt.day:
-                    test_dom = replace_day(start_dt, next_dom)
+                    test_dom = test_dom.replace(day=next_dom)
             except Exception:
                 # If no days match, move into next month by
                 # determining how many days left until next month's first
@@ -206,9 +162,6 @@ class CronJob(object):
                 mr = calendar.monthrange(start_dt.year, start_dt.month)
                 add_days = mr[-1] - test_dom.day + self.cron_dom[0]
                 test_dom += datetime.timedelta(days=add_days)
-                test_dom = test_dom.replace(hour=self.cron_hours[0],
-                    minute=self.cron_minutes[0])
-                in_next_month = True
 
             remaining_dow = range(start_dt.weekday(), self.MAX_DOW)
             test_dow = start_dt
@@ -218,17 +171,12 @@ class CronJob(object):
                 add_days = next_dow - start_dt.weekday()
                 if add_days > 0:
                     test_dow += datetime.timedelta(days=add_days)
-                    test_dow = test_dow.replace(hour=self.cron_hours[0],
-                        minute=self.cron_minutes[0])
             except Exception:
                 # If no weekdays match, move into next week.
                 logging.debug('moving into next week')
                 add_days = (self.MAX_DOW - test_dow.weekday() +
                     self.cron_dow[0])
                 test_dow += datetime.timedelta(days=add_days)
-                test_dow = replace_hour(test_dow, self.cron_hours[0])
-                if test_dow.month != start_dt.month:
-                    in_next_month = True
 
             # Determine whether to use DOM or DOW
             use_dom = True
@@ -252,41 +200,40 @@ class CronJob(object):
             if use_dom:
                 logging.debug('using dom')
                 assert test_dom.day in self.cron_dom
-                start_dt = test_dom
-                if in_next_month:
-                    return create_date(start_dt)
+                return test_dom
             else:
                 logging.debug('using dow')
                 assert test_dow.weekday() in self.cron_dow
-                start_dt = test_dow
-                if in_next_month:
-                    return create_date(start_dt)
+                return test_dow
 
-            # Calculate hour.
-
-            remaining_hours = range(start_dt.hour, self.MAX_HOUR)
+        def set_next_month(start_dt):
+            # Find next month in which job will run.
+            # (See whether any of the remaining months in the current year
+            # match any of the cron job's months.)
+            remaining_months = range(start_dt.month, self.MAX_MONTH)
             try:
-                next_hour = first_common_value(remaining_hours,
-                    self.cron_hours)
-                if next_hour != start_dt.hour:
-                    start_dt = replace_hour(start_dt, next_hour)
+                next_month = first_common_value(remaining_months,
+                    self.cron_months)
+                if next_month != start_dt.month:
+                    start_dt = start_dt.replace(month=next_month)
             except Exception:
-                # If no hours match, move into next day and restart.
-                start_dt += datetime.timedelta(days=1)
-                start_dt = replace_hour(start_dt, self.cron_hours[0])
-                return create_date(start_dt)
+                # If no months match, move into first month of next year.
+                start_dt = start_dt.replace(year=start_dt.year + 1,
+                    month=self.cron_months[0])
 
-            remaining_mins = range(start_dt.minute, self.MAX_MINUTE)
-            try:
-                next_min = first_common_value(remaining_mins,
-                    self.cron_minutes)
-                if next_min != start_dt.minute:
-                    start_dt = replace_minute(start_dt, next_min)
-            except Exception:
-                # If no minutes match, move into next hour and restart.
-                start_dt += datetime.timedelta(hours=1)
-                start_dt = replace_minute(start_dt, self.cron_minutes[0])
-                return create_date(start_dt)
+            return start_dt
+
+        def create_date(start_dt):
+            logging.debug(self)
+            logging.debug('0: %s' % start_dt)
+            start_dt = set_next_minute(start_dt)
+            logging.debug('1: %s' % start_dt)
+            start_dt = set_next_hour(start_dt)
+            logging.debug('2: %s' % start_dt)
+            start_dt = set_next_day(start_dt)
+            logging.debug('3: %s' % start_dt)
+            start_dt = set_next_month(start_dt)
+            logging.debug('4: %s' % start_dt)
 
             return start_dt
 
@@ -305,7 +252,13 @@ class CronJob(object):
             'DOM: {}\n\tMonth: {}\n\tDOW: {}\n\t' +
             'Next Run Date/Time: {}').format(self.action,
             self.minute, self.hour, self.dom, self.month, self.dow,
-            self.next_run())
+            '[disabled while testing]')
+
+        # return ('CronJob: {}\n\tMinute: {}\n\tHour: {}\n\t' +
+        #     'DOM: {}\n\tMonth: {}\n\tDOW: {}\n\t' +
+        #     'Next Run Date/Time: {}').format(self.action,
+        #     self.minute, self.hour, self.dom, self.month, self.dow,
+        #     self.next_run())
 
 
 class CronExaminer(object):
