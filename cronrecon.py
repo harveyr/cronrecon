@@ -27,6 +27,19 @@ class CronJob(object):
 
     def __init__(self, raw_string):
         self.raw_string = raw_string
+        self.minute = None
+        self.hour = None
+        self.dom = None
+        self.month = None
+        self.dow = None
+        self.action = None
+
+        self.cron_months = None
+        self.cron_minutes = None
+        self.cron_hours = None
+        self.cron_dom = None
+        self.cron_dow = None
+
         self.parse()
 
     def list_repr(self):
