@@ -163,6 +163,10 @@ class CronJob(object):
                 add_days = mr[-1] - test_dom.day + self.cron_dom[0]
                 test_dom += datetime.timedelta(days=add_days)
 
+            if self.dom != '*' and self.dow == '*':
+                # If dom is set and dow is not, use dom.
+                return test_dom
+
             remaining_dow = range(start_dt.weekday(), self.MAX_DOW)
             test_dow = start_dt
             next_dow = first_common_value(remaining_dow,
@@ -178,31 +182,15 @@ class CronJob(object):
                 test_dow += datetime.timedelta(days=add_days)
 
             # Determine whether to use DOM or DOW
-            use_dom = True
-            if self.dom != '*' and self.dow == '*':
-                # If dom is set and dow is not, use dom.
-                # This could be deleted given the above assignment,
-                # but is here for clarity.
-                use_dom = True
-            elif self.dom == '*' and self.dow != '*':
+            if self.dom == '*' and self.dow != '*':
                 # If dow is set and dom is not, use dow.
-                use_dom = False
+                return test_dow
             elif self.dom != '*' and self.dow != '*':
                 # If both are set, use the earliest one.
                 if test_dom < test_dow:
-                    use_dom = True
+                    return test_dom
                 else:
-                    use_dom = False
-
-            # Use the date selected above.
-            if use_dom:
-                logging.debug('using dom')
-                assert test_dom.day in self.cron_dom
-                return test_dom
-            else:
-                logging.debug('using dow')
-                assert test_dow.weekday() in self.cron_dow
-                return test_dow
+                    return test_dow
 
         def set_next_month(start_dt):
             # Find next month in which job will run.
