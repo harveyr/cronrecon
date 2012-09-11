@@ -312,7 +312,7 @@ class CronExaminer(object):
         return match_list
 
     def upcoming_jobs(self, n=None):
-        # Make a list of all upcoming jobs and their dates
+        # Make a list of n upcoming jobs and their dates
         l = []
         for i in range(len(self.cronjobs)):
             job = self.cronjobs[i]
