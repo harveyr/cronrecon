@@ -100,14 +100,19 @@ class CronJob(object):
         cron job time. There is probably a better way to do this."""
 
         # The following methods replace a certain element of a timedate.
-        # This happens when we're moving forward in time. So, for example,
-        # if we're bumping forward a month, we want to zero out the smaller
-        # time fields so we start at the beginning of the month.
+        # This happens when you're moving forward in time. So, for example,
+        # if you're bumping forward a month, you want to zero out the smaller
+        # time fields so you start at the beginning of the month.
         # "Zeroing out" means starting at the first possible next job.
-        # Accordingly, we set the new start time to the first element
+        # Accordingly, you set the new start time to the first element
         # in the self.cron_* lists, except for the day field, which could
-        # be a DOM or DOW, so we just set that to the earliest possible day.
-        # Then we start nudging forward again from that new date.
+        # be a DOM or DOW, so you just set that to the earliest possible day.
+        # Then you start nudging forward again from that new date.
+        #
+        # Note that these methods can be used only when the new value
+        # is proper. E.g., you can't replace the hour with 34. If you
+        # don't know whether the value will be proper (e.g., when you're
+        # just incrementing by one), use a timedelta instead.
 
         def replace_year(dt, year):
             return dt.replace(year=year,
@@ -177,8 +182,8 @@ class CronJob(object):
             remaining_dom = range(start_dt.day, self.MAX_DOM)
             test_dom = start_dt
             try:
-                next_dom = next(
-                    i for i in remaining_dom if i in self.cron_dom)
+                next_dom = first_common_value(remaining_dom,
+                    self.cron_dom)
                 if next_dom != start_dt.day:
                     test_dom = replace_day(start_dt, next_dom)
             except Exception:
@@ -192,10 +197,11 @@ class CronJob(object):
                     minute=self.cron_minutes[0])
                 in_next_month = True
 
-            rem_dow = range(start_dt.weekday(), self.MAX_DOW)
+            remaining_dow = range(start_dt.weekday(), self.MAX_DOW)
             test_dow = start_dt
             try:
-                next_dow = next(i for i in rem_dow if i in self.cron_dow)
+                next_dow = first_common_value(remaining_dow,
+                    self.cron_dow)
                 add_days = next_dow - start_dt.weekday()
                 if add_days > 0:
                     test_dow += datetime.timedelta(days=add_days)
@@ -247,8 +253,8 @@ class CronJob(object):
 
             remaining_hours = range(start_dt.hour, self.MAX_HOUR)
             try:
-                next_hour = next(
-                    i for i in remaining_hours if i in self.cron_hours)
+                next_hour = first_common_value(remaining_hours,
+                    self.cron_hours)
                 if next_hour != start_dt.hour:
                     start_dt = replace_hour(start_dt, next_hour)
             except Exception:
@@ -259,8 +265,8 @@ class CronJob(object):
 
             remaining_mins = range(start_dt.minute, self.MAX_MINUTE)
             try:
-                next_min = next(
-                    i for i in remaining_mins if i in self.cron_minutes)
+                next_min = first_common_value(remaining_mins,
+                    self.cron_minutes)
                 if next_min != start_dt.minute:
                     start_dt = replace_minute(start_dt, next_min)
             except Exception:
