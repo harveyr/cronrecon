@@ -1,12 +1,10 @@
 import logging
-import datetime
-from croncrush import CronJob
+from cronrecon import CronJob
 
 
 def setUp():
     logging.basicConfig(level=logging.DEBUG,
         format='%(levelname)s %(module)s (%(lineno)s): %(message)s')
-    logging.disable(logging.NOTSET)
 
 
 def test_cron1():

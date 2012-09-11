@@ -204,12 +204,18 @@ class CronJob(object):
 
             use_dom = True
 
+            logging.debug('dom: ({}), dow: ({})'.format(self.dom, self.dow))
+            logging.debug('dom == *: {}'.format(self.dom == '*'))
+            logging.debug('dow == *: {}'.format(self.dow == '*'))
             # Determine whether to use DOM or DOW
             if self.dom != '*' and self.dow == '*':
+                # If dom is set and dow is not, use dom.
                 use_dom = True
-            elif self.dom == '*' and self.dom != '*':
+            elif self.dom == '*' and self.dow != '*':
+                # If dow is set and dom is not, use dow.
                 use_dom = False
             elif self.dom != '*' and self.dow != '*':
+                # If both are set, use the earliest one.
                 if test_dom < test_dow:
                     use_dom = True
                 else:
