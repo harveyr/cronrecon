@@ -194,8 +194,6 @@ class CronJob(object):
 
             rem_dow = range(start_dt.weekday(), self.MAX_DOW)
             test_dow = start_dt
-            logging.debug('self.cron_dow: %s' % self.cron_dow)
-            logging.debug('current dow: %s' % start_dt.weekday())
             try:
                 next_dow = next(i for i in rem_dow if i in self.cron_dow)
                 add_days = next_dow - start_dt.weekday()
@@ -234,12 +232,13 @@ class CronJob(object):
             # next month, make a recursive call.
             if use_dom:
                 logging.debug('using dom')
+                assert test_dom.day in self.cron_dom
                 start_dt = test_dom
                 if in_next_month:
                     return create_date(start_dt)
             else:
                 logging.debug('using dow')
-                assert test_dow.weekday() == int(self.dow)
+                assert test_dow.weekday() in self.cron_dow
                 start_dt = test_dow
                 if in_next_month:
                     return create_date(start_dt)
