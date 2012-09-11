@@ -113,16 +113,18 @@ class CronJob(object):
 
         def first_common_value(list1, list2):
             # Finds the first matching element in both lists
-            return next(i for i in list1 if i in list2)
+            try:
+                return next(i for i in list1 if i in list2)
+            except Exception:
+                return None
 
         def set_next_minute(start_dt):
             remaining_mins = range(start_dt.minute, self.MAX_MINUTE)
-            try:
-                next_min = first_common_value(remaining_mins,
-                    self.cron_minutes)
-                if next_min != start_dt.minute:
-                    start_dt = replace_minute(start_dt, next_min)
-            except Exception:
+            next_min = first_common_value(remaining_mins,
+                self.cron_minutes)
+            if next_min is not None and next_min != start_dt.minute:
+                start_dt = start_dt.replace(minute=next_min)
+            elif next_min is None:
                 # If no minutes match, move into next hour.
                 start_dt += datetime.timedelta(hours=1)
                 start_dt = start_dt.replace(minute=self.cron_minutes[0])
@@ -131,12 +133,11 @@ class CronJob(object):
 
         def set_next_hour(start_dt):
             remaining_hours = range(start_dt.hour, self.MAX_HOUR)
-            try:
-                next_hour = first_common_value(remaining_hours,
-                    self.cron_hours)
-                if next_hour != start_dt.hour:
-                    start_dt = start_dt.replace(hour=next_hour)
-            except Exception:
+            next_hour = first_common_value(remaining_hours,
+                self.cron_hours)
+            if next_hour is not None and next_hour != start_dt.hour:
+                start_dt = start_dt.replace(hour=next_hour)
+            elif next_hour is None:
                 # If no hours match, move into next day and restart.
                 start_dt += datetime.timedelta(days=1)
                 start_dt = start_dt.replace(hour=self.cron_hours[0])
@@ -144,18 +145,17 @@ class CronJob(object):
             return start_dt
 
         def set_next_day(start_dt):
-            # Step 2. Deal with DOM versus DOW. This should treat DOM
+            # Deal with DOM versus DOW. This should treat DOM
             # and DOW as cumulative when they are both set. Test days for both
             # DOM and DOW are found to determine which might be next.
-
             remaining_dom = range(start_dt.day, self.MAX_DOM)
             test_dom = start_dt
-            try:
-                next_dom = first_common_value(remaining_dom,
-                    self.cron_dom)
-                if next_dom != start_dt.day:
-                    test_dom = test_dom.replace(day=next_dom)
-            except Exception:
+
+            next_dom = first_common_value(remaining_dom,
+                self.cron_dom)
+            if next_dom is not None and next_dom != start_dt.day:
+                test_dom = test_dom.replace(day=next_dom)
+            elif next_dom is None:
                 # If no days match, move into next month by
                 # determining how many days left until next month's first
                 # job and then advancing those days.
@@ -165,15 +165,14 @@ class CronJob(object):
 
             remaining_dow = range(start_dt.weekday(), self.MAX_DOW)
             test_dow = start_dt
-            try:
-                next_dow = first_common_value(remaining_dow,
-                    self.cron_dow)
+            next_dow = first_common_value(remaining_dow,
+                self.cron_dow)
+            if next_dow is not None:
                 add_days = next_dow - start_dt.weekday()
                 if add_days > 0:
                     test_dow += datetime.timedelta(days=add_days)
-            except Exception:
+            else:
                 # If no weekdays match, move into next week.
-                logging.debug('moving into next week')
                 add_days = (self.MAX_DOW - test_dow.weekday() +
                     self.cron_dow[0])
                 test_dow += datetime.timedelta(days=add_days)
@@ -195,8 +194,7 @@ class CronJob(object):
                 else:
                     use_dom = False
 
-            # Use the date selected above, and if we had to move into the
-            # next month, make a recursive call.
+            # Use the date selected above.
             if use_dom:
                 logging.debug('using dom')
                 assert test_dom.day in self.cron_dom
@@ -211,12 +209,11 @@ class CronJob(object):
             # (See whether any of the remaining months in the current year
             # match any of the cron job's months.)
             remaining_months = range(start_dt.month, self.MAX_MONTH)
-            try:
-                next_month = first_common_value(remaining_months,
-                    self.cron_months)
-                if next_month != start_dt.month:
-                    start_dt = start_dt.replace(month=next_month)
-            except Exception:
+            next_month = first_common_value(remaining_months,
+                self.cron_months)
+            if next_month is not None and next_month != start_dt.month:
+                start_dt = start_dt.replace(month=next_month)
+            elif next_month is None:
                 # If no months match, move into first month of next year.
                 start_dt = start_dt.replace(year=start_dt.year + 1,
                     month=self.cron_months[0])
@@ -239,6 +236,7 @@ class CronJob(object):
 
         if start_dt is None:
             start_dt = datetime.datetime.now()
+        # New date with only the relevant time fields.
         start_dt = datetime.datetime(start_dt.year,
             start_dt.month,
             start_dt.day,
