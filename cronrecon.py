@@ -3,8 +3,9 @@ import datetime
 import calendar
 import logging
 
-logging.basicConfig(level=logging.ERROR,
+logging.basicConfig(level=logging.DEBUG,
     format='%(levelname)s %(module)s (%(lineno)s): %(message)s')
+# logging.disable(logging.DEBUG)
 
 
 class CronJob(object):
@@ -71,6 +72,7 @@ class CronJob(object):
 
             return sorted(cron_list)
 
+        # Parse the text from the cron entry.
         fields = filter(None, self.raw_string.split(' '))
         self.minute = fields[0]
         self.hour = fields[1]
@@ -79,6 +81,7 @@ class CronJob(object):
         self.dow = fields[4]
         self.action = ' '.join(fields[5:]).strip()
 
+        # Create the lists of months, minutes, days when job will run
         self.cron_months = start_parse(self.month, self.MIN_MONTH,
             self.MAX_MONTH)
         self.cron_minutes = start_parse(self.minute, self.MIN_MINUTE,
@@ -104,6 +107,7 @@ class CronJob(object):
         # Accordingly, we set the new start time to the first element
         # in the self.cron_* lists, except for the day field, which could
         # be a DOM or DOW, so we just set that to the earliest possible day.
+        # Then we start nudging forward again from that new date.
 
         def replace_year(dt, year):
             return dt.replace(year=year,
@@ -138,9 +142,10 @@ class CronJob(object):
             # This method is recursively called until we land on a cron date.
 
             # Recursion halt for debugging.
+            # Delete after refining this method.
             self.counter += 1
             if self.counter == 80:
-                sys.exit()
+                sys.exit('Recursion halt in create_date. You broke it.')
 
             # Step 1: Find next month in which job will run.
             # (See whether any of the remaining months in the current year
@@ -155,6 +160,8 @@ class CronJob(object):
                 # If no months match, move into first month of next year,
                 # and restart.
                 start_dt = replace_year(start_dt, start_dt.year + 1)
+                logging.debug('Moving into next year ({}).'.format(
+                    start_dt.year))
                 return create_date(start_dt)
 
             logging.debug('month set to %s' % start_dt.month)
@@ -166,7 +173,6 @@ class CronJob(object):
             # These flags determine whether, after the comparison,
             # we need to make a recursive call.
             in_next_month = False
-            in_next_week = False
 
             remaining_dom = range(start_dt.day, self.MAX_DOM)
             test_dom = start_dt
@@ -188,6 +194,8 @@ class CronJob(object):
 
             rem_dow = range(start_dt.weekday(), self.MAX_DOW)
             test_dow = start_dt
+            logging.debug('self.cron_dow: %s' % self.cron_dow)
+            logging.debug('current dow: %s' % start_dt.weekday())
             try:
                 next_dow = next(i for i in rem_dow if i in self.cron_dow)
                 add_days = next_dow - start_dt.weekday()
@@ -196,20 +204,21 @@ class CronJob(object):
                     test_dow = test_dow.replace(hour=self.cron_hours[0],
                         minute=self.cron_minutes[0])
             except Exception:
-                # If no weekdays match, move into next week and restart.
-                add_days = self.MAX_DOW - test_dow.weekday()
+                # If no weekdays match, move into next week.
+                logging.debug('moving into next week')
+                add_days = (self.MAX_DOW - test_dow.weekday() +
+                    self.cron_dow[0])
                 test_dow += datetime.timedelta(days=add_days)
                 test_dow = replace_hour(test_dow, self.cron_hours[0])
-                in_next_week = True
+                if test_dow.month != start_dt.month:
+                    in_next_month = True
 
-            use_dom = True
-
-            logging.debug('dom: ({}), dow: ({})'.format(self.dom, self.dow))
-            logging.debug('dom == *: {}'.format(self.dom == '*'))
-            logging.debug('dow == *: {}'.format(self.dow == '*'))
             # Determine whether to use DOM or DOW
+            use_dom = True
             if self.dom != '*' and self.dow == '*':
                 # If dom is set and dow is not, use dom.
+                # This could be deleted given the above assignment,
+                # but is here for clarity.
                 use_dom = True
             elif self.dom == '*' and self.dow != '*':
                 # If dow is set and dom is not, use dow.
@@ -221,6 +230,8 @@ class CronJob(object):
                 else:
                     use_dom = False
 
+            # Use the date selected above, and if we had to move into the
+            # next month, make a recursive call.
             if use_dom:
                 logging.debug('using dom')
                 start_dt = test_dom
@@ -228,8 +239,9 @@ class CronJob(object):
                     return create_date(start_dt)
             else:
                 logging.debug('using dow')
+                assert test_dow.weekday() == int(self.dow)
                 start_dt = test_dow
-                if in_next_week:
+                if in_next_month:
                     return create_date(start_dt)
 
             # Calculate hour.
