@@ -21,9 +21,6 @@ class CronJob(object):
     MAX_DOW = 7
     MIN_DOW = 0
 
-    # Recursion counter for debugging
-    counter = 0
-
     def __init__(self, raw_string):
         self.raw_string = raw_string
         self.minute = None
