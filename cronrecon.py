@@ -1,4 +1,3 @@
-import sys
 import datetime
 import calendar
 import logging
