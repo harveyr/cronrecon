@@ -5,7 +5,7 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG,
     format='%(levelname)s %(module)s (%(lineno)s): %(message)s')
-# logging.disable(logging.DEBUG)
+logging.disable(logging.DEBUG)
 
 
 class CronJob(object):
@@ -144,53 +144,63 @@ class CronJob(object):
 
             return start_dt
 
-        def set_next_day(start_dt):
-            # Deal with DOM versus DOW. This should treat DOM
-            # and DOW as cumulative when they are both set. Test days for both
-            # DOM and DOW are found to determine which might be next.
+        def get_next_dom(start_dt):
             remaining_dom = range(start_dt.day, self.MAX_DOM)
-            test_dom = start_dt
+            return_dt = start_dt
 
             next_dom = first_common_value(remaining_dom,
                 self.cron_dom)
             if next_dom is not None and next_dom != start_dt.day:
-                test_dom = test_dom.replace(day=next_dom)
+                return_dt = return_dt.replace(day=next_dom)
             elif next_dom is None:
                 # If no days match, move into next month by
                 # determining how many days left until next month's first
                 # job and then advancing those days.
                 mr = calendar.monthrange(start_dt.year, start_dt.month)
-                add_days = mr[-1] - test_dom.day + self.cron_dom[0]
-                test_dom += datetime.timedelta(days=add_days)
+                add_days = mr[-1] - return_dt.day + self.cron_dom[0]
+                return_dt += datetime.timedelta(days=add_days)
 
-            if self.dom != '*' and self.dow == '*':
-                # If dom is set and dow is not, use dom.
-                return test_dom
+            return return_dt
 
+        def get_next_dow(start_dt):
             remaining_dow = range(start_dt.weekday(), self.MAX_DOW)
-            test_dow = start_dt
+            return_dt = start_dt
             next_dow = first_common_value(remaining_dow,
                 self.cron_dow)
             if next_dow is not None:
                 add_days = next_dow - start_dt.weekday()
                 if add_days > 0:
-                    test_dow += datetime.timedelta(days=add_days)
+                    return_dt += datetime.timedelta(days=add_days)
             else:
                 # If no weekdays match, move into next week.
-                add_days = (self.MAX_DOW - test_dow.weekday() +
+                add_days = (self.MAX_DOW - return_dt.weekday() +
                     self.cron_dow[0])
-                test_dow += datetime.timedelta(days=add_days)
+                return_dt += datetime.timedelta(days=add_days)
 
-            # Determine whether to use DOM or DOW
+            return return_dt
+
+        def set_next_day(start_dt):
+            # Deal with DOM versus DOW. This should treat DOM
+            # and DOW as cumulative when they are both set. Test days for both
+            # DOM and DOW are found to determine which might be next.
+
+            if self.dom != '*' and self.dow == '*':
+                # If dom is set and dow is not, use dom.
+                return get_next_dom(start_dt)
+
             if self.dom == '*' and self.dow != '*':
                 # If dow is set and dom is not, use dow.
-                return test_dow
-            elif self.dom != '*' and self.dow != '*':
+                return get_next_dow(start_dt)
+
+            test_dom = get_next_dom(start_dt)
+            test_dow = get_next_dow(start_dt)
+
+            if self.dom != '*' and self.dow != '*':
                 # If both are set, use the earliest one.
                 if test_dom < test_dow:
-                    return test_dom
+                    return get_next_dom(start_dt)
                 else:
-                    return test_dow
+                    return get_next_dow(start_dt)
 
         def set_next_month(start_dt):
             # Find next month in which job will run.
