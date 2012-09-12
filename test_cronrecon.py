@@ -115,3 +115,92 @@ def test_day_and_hour_rollover():
     next_run = job.next_run(start_dt)
     assert next_run.day == 22
     assert next_run.hour == 12
+
+
+def test_multi_rollover():
+    minute = '*/20'
+    hour = '5,19'
+    dom = '*/13'
+    month = '*/3'
+    dow = 6
+
+    cron_str = '{} {} {} {} {}'.format(
+        minute, hour, dom, month, dow)
+    job = CronJob(cron_str)
+
+    # This was a Sunday (DOW == 6).
+    start_dt = datetime.datetime(
+        year=2012,
+        month=1,
+        day=1,
+        hour=0,
+        minute=1)
+
+    nr = job.next_run(start_dt)
+    assert nr.minute == 20
+    assert nr.hour == 5
+    assert nr.weekday() == dow
+    assert nr.month == 1
+
+    nr += datetime.timedelta(minutes=1)
+    nr = job.next_run(nr)
+    assert nr.minute == 40
+    assert nr.hour == 5
+    assert nr.weekday() == dow
+    assert nr.month == 1
+
+    nr += datetime.timedelta(minutes=1)
+    nr = job.next_run(nr)
+    assert nr.minute == 0
+    assert nr.hour == 19
+    assert nr.weekday() == dow
+    assert nr.month == 1
+
+    # Now should be on the 8th (the next Sunday)
+    nr += datetime.timedelta(hours=1)
+    nr = job.next_run(nr)
+    assert nr.minute == 0
+    assert nr.hour == 5
+    assert nr.day == 8
+    assert nr.month == 1
+
+    # Now should be on the 14th (a Saturday)
+    nr += datetime.timedelta(days=1)
+    nr = job.next_run(nr)
+    assert nr.minute == 0
+    assert nr.hour == 5
+    assert nr.day == 14
+    assert nr.month == 1
+
+    # Now should be on the 15th (the next Sunday)
+    nr += datetime.timedelta(days=1)
+    nr = job.next_run(nr)
+    assert nr.minute == 0
+    assert nr.hour == 5
+    assert nr.day == 15
+    assert nr.month == 1
+
+    # Now should be on the 22nd (the next Sunday)
+    nr += datetime.timedelta(days=1)
+    nr = job.next_run(nr)
+    assert nr.minute == 0
+    assert nr.hour == 5
+    assert nr.day == 22
+    assert nr.month == 1
+
+    # Now should be on the 27th (a Friday)
+    nr += datetime.timedelta(days=1)
+    nr = job.next_run(nr)
+    assert nr.minute == 0
+    assert nr.hour == 5
+    assert nr.day == 27
+    assert nr.month == 1
+
+    # Now should jump three months ahead
+    nr += datetime.timedelta(days=4)
+    nr = job.next_run(nr)
+    assert nr.minute == 0
+    assert nr.hour == 5
+    assert nr.day == 1
+    assert nr.month == 4
+
