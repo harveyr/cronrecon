@@ -4,7 +4,7 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG,
     format='%(levelname)s %(module)s (%(lineno)s): %(message)s')
-logging.disable(logging.DEBUG)
+# logging.disable(logging.DEBUG)
 
 
 class CronJob(object):
@@ -107,6 +107,7 @@ class CronJob(object):
         job will next run. This method starts by finding the next
         cron minute and moves on up from there."""
 
+
         def first_common_value(list1, list2):
             # Finds the first matching element in both lists
             try:
@@ -180,6 +181,10 @@ class CronJob(object):
             # and DOW as cumulative when they are both set. Test days for both
             # DOM and DOW are found to determine which might be next.
 
+            if self.dom == '*' and self.dow == '*':
+                # If neither is set, then the current day is a cron day.
+                return start_dt
+
             if self.dom != '*' and self.dow == '*':
                 # If dom is set and dow is not, use dom.
                 return get_next_dom(start_dt)
@@ -197,6 +202,9 @@ class CronJob(object):
                     return get_next_dom(start_dt)
                 else:
                     return get_next_dow(start_dt)
+            else:
+                logging.error('Failed to evaluate dom {}, dow {}'
+                    .format(self.dom, self.dow))
 
         def set_next_month(start_dt):
             # Find next month in which job will run.
@@ -236,6 +244,8 @@ class CronJob(object):
             start_dt.day,
             start_dt.hour,
             start_dt.minute)
+
+        logging.debug('start_dt: %s' % start_dt)
 
         return create_date(start_dt)
 
