@@ -1,4 +1,4 @@
 cronrecon
 =========
 
-Crontab examiner. This began as a timed test problem.
+Crontab examiner. This was a timed test problem from many moons ago.
